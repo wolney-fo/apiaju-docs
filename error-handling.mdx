@@ -1,0 +1,652 @@
+---
+title: "Error Handling"
+description: "Learn how to handle errors and edge cases when using ApiAju"
+---
+
+## Overview
+
+ApiAju uses standard HTTP status codes to indicate the success or failure of API requests. This guide will help you understand and handle errors effectively.
+
+## HTTP Status Codes
+
+<AccordionGroup>
+  <Accordion title="200 - Success" icon="check">
+    The request was successful and the response contains the requested data.
+
+    ```json
+    {
+      "message": "Listing the holidays of 2024",
+      "data": [...]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="400 - Bad Request" icon="circle-xmark">
+    The request was malformed or contains invalid parameters.
+
+    **Common causes:**
+    - Invalid date format
+    - Year outside the valid range (1900-2199)
+    - Missing required parameters
+    - Invalid parameter values
+
+    ```json
+    {
+      "message": "Could not calculated holidays from year",
+      "error": "Invalid params"
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="500 - Internal Server Error" icon="triangle-exclamation">
+    An unexpected error occurred on the server.
+
+    ```json
+    {
+      "message": "Could not calculated holidays from year",
+      "error": "Year outside the valid range (1900-2199)"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error Response Structure
+
+All error responses follow a consistent structure:
+
+```json
+{
+  "message": "High-level description of what went wrong",
+  "error": "Detailed technical error message"
+}
+```
+
+<Info>
+  Always check both the HTTP status code and the error response body for complete error information.
+</Info>
+
+## Common Errors and Solutions
+
+### Invalid Date Format
+
+<Tabs>
+  <Tab title="Error">
+    ```bash
+    curl "https://api.aju.br/api/v1/calendar/holidays/is-holiday?date=25-12-2024"
+    ```
+
+    **Response:**
+    ```json
+    {
+      "message": "Could not check if date is holiday",
+      "error": "Invalid params"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Solution">
+    **Always use ISO 8601 date format (YYYY-MM-DD):**
+    ```bash
+    curl "https://api.aju.br/api/v1/calendar/holidays/is-holiday?date=2024-12-25"
+    ```
+
+    ```javascript
+    // Convert JavaScript Date to proper format
+    const date = new Date();
+    const formattedDate = date.toISOString().split('T')[0]; // "2024-10-22"
+    ```
+  </Tab>
+</Tabs>
+
+### Year Out of Range
+
+<Tabs>
+  <Tab title="Error">
+    ```bash
+    curl "https://api.aju.br/api/v1/calendar/holidays?year=2250"
+    ```
+
+    **Response:**
+    ```json
+    {
+      "message": "Could not calculated holidays from year",
+      "error": "Year outside the valid range (1900-2199)"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Solution">
+    **Validate year before making the request:**
+    ```javascript
+    function isValidYear(year) {
+      return year >= 1900 && year <= 2199;
+    }
+
+    async function getHolidays(year) {
+      if (!isValidYear(year)) {
+        throw new Error(`Year must be between 1900 and 2199. Got: ${year}`);
+      }
+      
+      const response = await fetch(
+        `https://api.aju.br/api/v1/calendar/holidays?year=${year}`
+      );
+      return await response.json();
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Missing Required Parameters
+
+<Tabs>
+  <Tab title="Error">
+    ```bash
+    # Missing required startDate and endDate
+    curl "https://api.aju.br/api/v1/calendar/business-days"
+    ```
+
+    **Response:**
+    ```json
+    {
+      "message": "Could not calculated business days between dates",
+      "error": "Invalid params"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Solution">
+    **Provide all required parameters:**
+    ```bash
+    curl "https://api.aju.br/api/v1/calendar/business-days?startDate=2024-01-01&endDate=2024-12-31"
+    ```
+
+    ```javascript
+    async function calculateBusinessDays(startDate, endDate) {
+      if (!startDate || !endDate) {
+        throw new Error('Both startDate and endDate are required');
+      }
+      
+      const response = await fetch(
+        `https://api.aju.br/api/v1/calendar/business-days?` +
+        `startDate=${startDate}&endDate=${endDate}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      return await response.json();
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Start Date After End Date
+
+<Tabs>
+  <Tab title="Error">
+    ```bash
+    curl "https://api.aju.br/api/v1/calendar/business-days?startDate=2024-12-31&endDate=2024-01-01"
+    ```
+
+    **Response:**
+    ```json
+    {
+      "message": "Could not calculated business days between dates",
+      "error": "Invalid params"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Solution">
+    **Validate date order before making the request:**
+    ```javascript
+    function validateDateRange(startDate, endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (start > end) {
+        throw new Error('Start date must be before or equal to end date');
+      }
+    }
+
+    async function getBusinessDays(startDate, endDate) {
+      validateDateRange(startDate, endDate);
+      
+      const response = await fetch(
+        `https://api.aju.br/api/v1/calendar/business-days?` +
+        `startDate=${startDate}&endDate=${endDate}`
+      );
+      
+      return await response.json();
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling Best Practices
+
+### 1. Comprehensive Error Handling
+
+Always wrap API calls in try-catch blocks and handle different error scenarios:
+
+<CodeGroup>
+
+```javascript JavaScript
+async function fetchHolidays(year) {
+  try {
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/holidays?year=${year}`
+    );
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      
+      if (response.status === 400) {
+        throw new Error(errorData?.error || 'Invalid request parameters');
+      } else if (response.status === 500) {
+        throw new Error('Server error. Please try again later.');
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    }
+    
+    const data = await response.json();
+    return { success: true, data: data.data };
+    
+  } catch (error) {
+    console.error('Error fetching holidays:', error);
+    
+    return {
+      success: false,
+      error: error.message,
+      // Provide fallback data or graceful degradation
+      data: []
+    };
+  }
+}
+
+// Usage
+const result = await fetchHolidays(2024);
+if (result.success) {
+  console.log('Holidays:', result.data);
+} else {
+  console.error('Failed to fetch holidays:', result.error);
+  // Show user-friendly error message
+}
+```
+
+```python Python
+import requests
+from typing import Dict, List, Optional
+
+def fetch_holidays(year: int) -> Dict:
+    """
+    Fetch holidays with comprehensive error handling.
+    
+    Returns:
+        Dictionary with success status, data, and error information
+    """
+    try:
+        response = requests.get(
+            f'https://api.aju.br/api/v1/calendar/holidays?year={year}',
+            timeout=10  # Add timeout to prevent hanging
+        )
+        
+        # Raise exception for bad status codes
+        response.raise_for_status()
+        
+        data = response.json()
+        return {
+            'success': True,
+            'data': data.get('data', []),
+            'message': data.get('message', '')
+        }
+        
+    except requests.Timeout:
+        return {
+            'success': False,
+            'error': 'Request timed out',
+            'data': []
+        }
+    
+    except requests.HTTPError as e:
+        error_data = {}
+        try:
+            error_data = response.json()
+        except ValueError:
+            pass
+        
+        return {
+            'success': False,
+            'error': error_data.get('error', str(e)),
+            'data': []
+        }
+    
+    except requests.RequestException as e:
+        return {
+            'success': False,
+            'error': f'Network error: {str(e)}',
+            'data': []
+        }
+
+# Usage
+result = fetch_holidays(2024)
+if result['success']:
+    print(f"Found {len(result['data'])} holidays")
+else:
+    print(f"Error: {result['error']}")
+```
+
+```typescript TypeScript
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  statusCode?: number;
+}
+
+interface Holiday {
+  date: string;
+  name: string;
+  type: 'national' | 'state' | 'municipal';
+}
+
+async function fetchHolidays(year: number): Promise<ApiResponse<Holiday[]>> {
+  try {
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/holidays?year=${year}`
+    );
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      return {
+        success: false,
+        error: errorData.error || `HTTP error ${response.status}`,
+        statusCode: response.status,
+        data: []
+      };
+    }
+    
+    const data = await response.json();
+    
+    return {
+      success: true,
+      data: data.data || [],
+      statusCode: response.status
+    };
+    
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      data: []
+    };
+  }
+}
+
+// Usage with type safety
+const result = await fetchHolidays(2024);
+
+if (result.success && result.data) {
+  result.data.forEach(holiday => {
+    console.log(`${holiday.date}: ${holiday.name} (${holiday.type})`);
+  });
+} else {
+  console.error(`Error: ${result.error}`);
+}
+```
+
+</CodeGroup>
+
+### 2. Retry Logic for Transient Errors
+
+Implement retry logic for temporary network issues:
+
+```javascript
+async function fetchWithRetry(url, maxRetries = 3, delay = 1000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      
+      // Don't retry on client errors (4xx)
+      if (response.status >= 400 && response.status < 500) {
+        throw new Error(`Client error: ${response.status}`);
+      }
+      
+      // Retry on server errors (5xx)
+      if (i === maxRetries - 1) {
+        throw new Error(`Server error after ${maxRetries} attempts`);
+      }
+      
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+    }
+  }
+}
+
+// Usage
+try {
+  const data = await fetchWithRetry(
+    'https://api.aju.br/api/v1/calendar/holidays?year=2024'
+  );
+  console.log(data);
+} catch (error) {
+  console.error('Failed after retries:', error);
+}
+```
+
+### 3. Input Validation
+
+Validate all inputs before making API calls:
+
+```javascript
+class ApiAjuClient {
+  static DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  static MIN_YEAR = 1900;
+  static MAX_YEAR = 2199;
+  
+  static validateDate(date) {
+    if (!this.DATE_REGEX.test(date)) {
+      throw new Error(`Invalid date format: ${date}. Use YYYY-MM-DD`);
+    }
+    
+    // Additional validation: check if date is valid
+    const dateObj = new Date(date);
+    if (isNaN(dateObj.getTime())) {
+      throw new Error(`Invalid date: ${date}`);
+    }
+  }
+  
+  static validateYear(year) {
+    if (typeof year !== 'number' || !Number.isInteger(year)) {
+      throw new Error('Year must be an integer');
+    }
+    
+    if (year < this.MIN_YEAR || year > this.MAX_YEAR) {
+      throw new Error(
+        `Year must be between ${this.MIN_YEAR} and ${this.MAX_YEAR}`
+      );
+    }
+  }
+  
+  static async getHolidays(year) {
+    this.validateYear(year);
+    
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/holidays?year=${year}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  }
+  
+  static async isHoliday(date) {
+    this.validateDate(date);
+    
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/holidays/is-holiday?date=${date}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  }
+}
+
+// Usage
+try {
+  const holidays = await ApiAjuClient.getHolidays(2024);
+  const isHoliday = await ApiAjuClient.isHoliday('2024-12-25');
+} catch (error) {
+  console.error('Validation or API error:', error.message);
+}
+```
+
+### 4. User-Friendly Error Messages
+
+Map technical errors to user-friendly messages:
+
+```javascript
+const ERROR_MESSAGES = {
+  NETWORK_ERROR: 'Unable to connect to the service. Please check your internet connection.',
+  INVALID_YEAR: 'Please enter a year between 1900 and 2199.',
+  INVALID_DATE: 'Please enter a valid date in the format YYYY-MM-DD.',
+  SERVER_ERROR: 'The service is temporarily unavailable. Please try again later.',
+  INVALID_PARAMS: 'Invalid request parameters. Please check your input.',
+  TIMEOUT: 'Request took too long. Please try again.',
+  UNKNOWN: 'An unexpected error occurred. Please try again.'
+};
+
+function getUserFriendlyError(error) {
+  if (error.message.includes('year')) {
+    return ERROR_MESSAGES.INVALID_YEAR;
+  } else if (error.message.includes('date') || error.message.includes('Invalid params')) {
+    return ERROR_MESSAGES.INVALID_DATE;
+  } else if (error.message.includes('500')) {
+    return ERROR_MESSAGES.SERVER_ERROR;
+  } else if (error.message.includes('timeout')) {
+    return ERROR_MESSAGES.TIMEOUT;
+  } else if (error.message.includes('network') || error.message.includes('fetch')) {
+    return ERROR_MESSAGES.NETWORK_ERROR;
+  }
+  
+  return ERROR_MESSAGES.UNKNOWN;
+}
+
+// Usage in UI
+async function displayHolidays(year) {
+  try {
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/holidays?year=${year}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    // Display data to user
+    
+  } catch (error) {
+    const friendlyMessage = getUserFriendlyError(error);
+    // Show message to user in UI
+    showErrorNotification(friendlyMessage);
+  }
+}
+```
+
+## Testing Error Scenarios
+
+When testing your integration, make sure to test these error scenarios:
+
+<Steps>
+  <Step title="Invalid Date Formats">
+    Test various invalid date formats:
+    - `25-12-2024` (wrong order)
+    - `2024/12/25` (wrong separator)
+    - `2024-13-01` (invalid month)
+    - `2024-02-30` (invalid day)
+  </Step>
+  
+  <Step title="Out of Range Years">
+    Test years outside the valid range:
+    - `1899` (too old)
+    - `2200` (too far in future)
+  </Step>
+  
+  <Step title="Missing Parameters">
+    Test requests with missing required parameters
+  </Step>
+  
+  <Step title="Network Issues">
+    Simulate network failures and timeouts
+  </Step>
+</Steps>
+
+## Debugging Tips
+
+<CardGroup cols={2}>
+  <Card title="Check HTTP Status" icon="signal">
+    Always check the HTTP status code first to understand the type of error.
+  </Card>
+  
+  <Card title="Log Error Details" icon="terminal">
+    Log both the error message and the full error object for debugging.
+  </Card>
+  
+  <Card title="Use Browser DevTools" icon="browser">
+    Use the Network tab to inspect request/response details.
+  </Card>
+  
+  <Card title="Test in Isolation" icon="flask">
+    Test API calls independently before integrating them into your app.
+  </Card>
+</CardGroup>
+
+## Need More Help?
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api-reference/introduction"
+  >
+    View complete API documentation
+  </Card>
+  <Card
+    title="Best Practices"
+    icon="star"
+    href="/best-practices"
+  >
+    Learn optimization techniques
+  </Card>
+  <Card
+    title="Use Cases"
+    icon="lightbulb"
+    href="/use-cases"
+  >
+    See working examples
+  </Card>
+  <Card
+    title="GitHub Issues"
+    icon="github"
+    href="https://github.com/wolney-fo/apiaju/issues"
+  >
+    Report bugs or get support
+  </Card>
+</CardGroup>
+

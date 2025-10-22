@@ -1,33 +1,229 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'API Reference'
+description: 'Complete reference for all ApiAju endpoints'
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Overview
 
-## Welcome
+ApiAju provides a RESTful API for accessing calendar, holiday, and business day information for Aracaju-SE, Brazil. All endpoints are publicly accessible with no authentication required.
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+<CardGroup cols={2}>
+  <Card
+    title="Base URL"
+    icon="link"
+  >
+    `https://api.aju.br/api/v1`
+  </Card>
+  <Card
+    title="Response Format"
+    icon="file-code"
+  >
+    All responses are in JSON format
+  </Card>
+  <Card
+    title="No Authentication"
+    icon="unlock"
+  >
+    Public API - no API keys needed
+  </Card>
+  <Card
+    title="Rate Limits"
+    icon="gauge"
+  >
+    Fair use policy applies
+  </Card>
+</CardGroup>
+
+## OpenAPI Specification
+
+Our API is fully documented using the OpenAPI 3.0 specification. You can use this specification to generate client libraries, test the API, or integrate with API tools.
 
 <Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
+  title="View OpenAPI Specification"
+  icon="file-code"
+  href="https://github.com/wolney-fo/apiaju/blob/main/openapi.yml"
 >
-  View the OpenAPI specification file
+  Access the complete OpenAPI specification on GitHub
 </Card>
 
-## Authentication
+## API Endpoints
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+ApiAju provides the following endpoint categories:
+
+### Health Check
+
+Monitor the API status and availability.
+
+- **GET** `/health` - Check if the API is running
+
+### Calendar & Holidays
+
+Access holiday information for Aracaju.
+
+- **GET** `/calendar/holidays` - List all holidays for a year
+- **GET** `/calendar/holidays/is-holiday` - Check if a date is a holiday
+
+### Business Days
+
+Calculate working days and date ranges.
+
+- **GET** `/calendar/business-days` - Calculate business days between dates
+- **GET** `/calendar/business-days/end-date` - Calculate end date from business days
+
+<Note>
+  All calendar endpoints automatically handle national (Brazil), state (Sergipe), and municipal (Aracaju) holidays.
+</Note>
+
+## Date Formats
+
+All dates in the API use the ISO 8601 date format:
+
+```
+YYYY-MM-DD
+```
+
+**Examples:**
+- `2024-01-01` - January 1, 2024
+- `2024-12-25` - December 25, 2024
+
+## Response Structure
+
+### Success Response
+
+All successful responses follow this structure:
 
 ```json
-"security": [
-  {
-    "bearerAuth": []
+{
+  "message": "Descriptive message about the operation",
+  "data": {
+    // Response data here
   }
-]
+}
 ```
+
+### Error Response
+
+Error responses include helpful error messages:
+
+```json
+{
+  "message": "High-level error description",
+  "error": "Detailed error information"
+}
+```
+
+<Warning>
+  Always check the HTTP status code to determine if a request was successful (200-299 range).
+</Warning>
+
+## Holiday Types
+
+Holidays in ApiAju are categorized by their scope:
+
+<AccordionGroup>
+  <Accordion title="National (national)" icon="flag">
+    Holidays celebrated throughout Brazil.
+    
+    **Examples:**
+    - New Year's Day (Confraternização mundial)
+    - Independence Day (Independência do Brasil)
+    - Christmas (Natal)
+  </Accordion>
+
+  <Accordion title="State (state)" icon="map">
+    Holidays specific to Sergipe state.
+    
+    **Examples:**
+    - State-specific commemorations
+  </Accordion>
+
+  <Accordion title="Municipal (municipal)" icon="building">
+    Holidays specific to Aracaju city.
+    
+    **Examples:**
+    - City Anniversary (Aniversário da cidade) - March 17
+  </Accordion>
+</AccordionGroup>
+
+## Year Range
+
+The API supports calculations for years between **1900** and **2199**.
+
+<Info>
+  Requests outside this range will return a `400 Bad Request` error with details about the valid range.
+</Info>
+
+## Interactive API Reference
+
+Explore each endpoint in detail with interactive examples in the sections below:
+
+<CardGroup cols={2}>
+  <Card
+    title="Health Check"
+    icon="heart-pulse"
+    href="/api-reference/health"
+  >
+    Monitor API status
+  </Card>
+  <Card
+    title="Get Holidays"
+    icon="calendar-star"
+    href="/api-reference/holidays"
+  >
+    List holidays for a year
+  </Card>
+  <Card
+    title="Is Holiday"
+    icon="circle-question"
+    href="/api-reference/is-holiday"
+  >
+    Check if date is holiday
+  </Card>
+  <Card
+    title="Business Days"
+    icon="calculator"
+    href="/api-reference/business-days"
+  >
+    Calculate working days
+  </Card>
+  <Card
+    title="End Date Calculator"
+    icon="calendar-plus"
+    href="/api-reference/end-date"
+  >
+    Find end date from business days
+  </Card>
+</CardGroup>
+
+## Need More Help?
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get started in under 5 minutes
+  </Card>
+  <Card
+    title="Use Cases & Examples"
+    icon="lightbulb"
+    href="/use-cases"
+  >
+    See real-world integration examples
+  </Card>
+  <Card
+    title="Error Handling"
+    icon="shield-halved"
+    href="/error-handling"
+  >
+    Learn how to handle errors properly
+  </Card>
+  <Card
+    title="GitHub Issues"
+    icon="github"
+    href="https://github.com/wolney-fo/apiaju/issues"
+  >
+    Report bugs or request features
+  </Card>
+</CardGroup>

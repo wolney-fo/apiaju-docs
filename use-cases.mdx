@@ -1,0 +1,559 @@
+---
+title: "Use Cases & Examples"
+description: "Real-world integration examples and patterns for ApiAju"
+---
+
+## Overview
+
+This guide showcases practical use cases and integration patterns for ApiAju. Whether you're building a calendar app, HR system, or project management tool, these examples will help you get started quickly.
+
+## Use Case 1: Project Deadline Calculator
+
+Calculate realistic project deadlines by considering holidays and weekends.
+
+<Steps>
+  <Step title="Define Project Start Date">
+    ```javascript
+    const projectStartDate = '2024-10-22';
+    const estimatedWorkingDays = 45;
+    ```
+  </Step>
+
+  <Step title="Calculate Project End Date">
+    ```javascript
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/business-days/end-date?startDate=${projectStartDate}&workingDays=${estimatedWorkingDays}`
+    );
+    const data = await response.json();
+    
+    console.log(`Project deadline: ${data.data.endDate}`);
+    // Output: Project deadline: 2024-12-27
+    ```
+  </Step>
+
+  <Step title="Display to User">
+    ```javascript
+    // With Saturday as working day
+    const responseWithSaturday = await fetch(
+      `https://api.aju.br/api/v1/calendar/business-days/end-date?startDate=${projectStartDate}&workingDays=${estimatedWorkingDays}&includeSaturdays=true`
+    );
+    const dataWithSat = await responseWithSaturday.json();
+    
+    console.log(`Deadline (incl. Saturdays): ${dataWithSat.data.endDate}`);
+    ```
+  </Step>
+</Steps>
+
+## Use Case 2: Calendar Application
+
+Display holidays in your calendar application with proper categorization.
+
+<CodeGroup>
+
+```javascript React Component
+import { useEffect, useState } from 'react';
+
+function HolidayCalendar({ year = 2024 }) {
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchHolidays() {
+      try {
+        const response = await fetch(
+          `https://api.aju.br/api/v1/calendar/holidays?year=${year}`
+        );
+        const data = await response.json();
+        setHolidays(data.data);
+      } catch (error) {
+        console.error('Error fetching holidays:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchHolidays();
+  }, [year]);
+
+  if (loading) return <div>Loading holidays...</div>;
+
+  return (
+    <div className="holiday-list">
+      <h2>Holidays in {year}</h2>
+      {holidays.map((holiday) => (
+        <div key={holiday.date} className={`holiday ${holiday.type}`}>
+          <span className="date">{holiday.date}</span>
+          <span className="name">{holiday.name}</span>
+          <span className="badge">{holiday.type}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default HolidayCalendar;
+```
+
+```python Flask API
+from flask import Flask, jsonify
+import requests
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/api/holidays/<int:year>')
+def get_holidays(year):
+    """Proxy endpoint to fetch and cache holidays"""
+    try:
+        response = requests.get(
+            f'https://api.aju.br/api/v1/calendar/holidays?year={year}'
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        # Add additional processing or caching here
+        holidays = data['data']
+        
+        return jsonify({
+            'year': year,
+            'total': len(holidays),
+            'holidays': holidays
+        })
+    except requests.RequestException as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+```typescript Next.js API Route
+// app/api/holidays/[year]/route.ts
+import { NextResponse } from 'next/server';
+
+export async function GET(
+  request: Request,
+  { params }: { params: { year: string } }
+) {
+  try {
+    const year = params.year;
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/holidays?year=${year}`,
+      { next: { revalidate: 86400 } } // Cache for 24 hours
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch holidays');
+    }
+
+    const data = await response.json();
+    
+    return NextResponse.json(data);
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to fetch holidays' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+</CodeGroup>
+
+## Use Case 3: HR System - Leave Management
+
+Verify if employees are requesting leave on holidays.
+
+```python
+import requests
+from datetime import datetime
+
+def validate_leave_request(leave_date: str) -> dict:
+    """
+    Validates if a leave request date is a holiday.
+    Returns information about the leave request validity.
+    """
+    try:
+        response = requests.get(
+            f'https://api.aju.br/api/v1/calendar/holidays/is-holiday?date={leave_date}'
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        is_holiday = data['data']['isHoliday']
+        
+        return {
+            'date': leave_date,
+            'is_holiday': is_holiday,
+            'requires_approval': not is_holiday,
+            'message': f"{'Holiday - no leave needed' if is_holiday else 'Working day - leave request required'}"
+        }
+    except requests.RequestException as e:
+        return {
+            'error': True,
+            'message': str(e)
+        }
+
+# Example usage
+result = validate_leave_request('2024-12-25')
+print(result)
+# Output: {'date': '2024-12-25', 'is_holiday': True, 'requires_approval': False, ...}
+```
+
+## Use Case 4: SLA Tracking System
+
+Calculate business days for service level agreements.
+
+```typescript
+interface SLACalculation {
+  ticketCreated: string;
+  slaBusinessDays: number;
+  dueDate?: string;
+  remainingDays?: number;
+}
+
+async function calculateSLADueDate(
+  ticketDate: string,
+  slaDays: number,
+  includeSaturdays: boolean = false
+): Promise<string> {
+  const response = await fetch(
+    `https://api.aju.br/api/v1/calendar/business-days/end-date?` +
+    `startDate=${ticketDate}&workingDays=${slaDays}&includeSaturdays=${includeSaturdays}`
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to calculate SLA due date');
+  }
+  
+  const data = await response.json();
+  return data.data.endDate;
+}
+
+async function getRemainingBusinessDays(
+  startDate: string,
+  endDate: string
+): Promise<number> {
+  const response = await fetch(
+    `https://api.aju.br/api/v1/calendar/business-days?` +
+    `startDate=${startDate}&endDate=${endDate}`
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to calculate remaining days');
+  }
+  
+  const data = await response.json();
+  return data.data.businessDays;
+}
+
+// Example: Calculate SLA for a support ticket
+async function trackTicketSLA(ticket: SLACalculation) {
+  try {
+    // Calculate due date
+    const dueDate = await calculateSLADueDate(
+      ticket.ticketCreated,
+      ticket.slaBusinessDays
+    );
+    
+    // Calculate remaining days
+    const today = new Date().toISOString().split('T')[0];
+    const remainingDays = await getRemainingBusinessDays(today, dueDate);
+    
+    console.log(`Ticket created: ${ticket.ticketCreated}`);
+    console.log(`SLA: ${ticket.slaBusinessDays} business days`);
+    console.log(`Due date: ${dueDate}`);
+    console.log(`Remaining days: ${remainingDays}`);
+    
+    return {
+      ...ticket,
+      dueDate,
+      remainingDays,
+      isOverdue: remainingDays < 0
+    };
+  } catch (error) {
+    console.error('SLA calculation error:', error);
+    throw error;
+  }
+}
+
+// Usage
+trackTicketSLA({
+  ticketCreated: '2024-10-22',
+  slaBusinessDays: 5
+});
+```
+
+## Use Case 5: Financial System - Payment Processing
+
+Calculate payment due dates considering business days.
+
+<CodeGroup>
+
+```javascript Node.js
+const calculatePaymentDueDate = async (invoiceDate, paymentTerms) => {
+  try {
+    const response = await fetch(
+      `https://api.aju.br/api/v1/calendar/business-days/end-date?` +
+      `startDate=${invoiceDate}&workingDays=${paymentTerms}`
+    );
+    
+    const data = await response.json();
+    
+    return {
+      invoiceDate: invoiceDate,
+      paymentTerms: `${paymentTerms} business days`,
+      dueDate: data.data.endDate,
+      formatted: new Date(data.data.endDate).toLocaleDateString('pt-BR')
+    };
+  } catch (error) {
+    console.error('Error calculating payment due date:', error);
+    throw error;
+  }
+};
+
+// Example: 30-day payment terms
+calculatePaymentDueDate('2024-10-22', 30)
+  .then(result => console.log(result));
+// Output: { invoiceDate: '2024-10-22', paymentTerms: '30 business days', dueDate: '2024-12-04', ... }
+```
+
+```php PHP
+<?php
+
+function calculatePaymentDueDate($invoiceDate, $paymentTermDays) {
+    $url = sprintf(
+        'https://api.aju.br/api/v1/calendar/business-days/end-date?startDate=%s&workingDays=%d',
+        $invoiceDate,
+        $paymentTermDays
+    );
+    
+    $response = file_get_contents($url);
+    
+    if ($response === false) {
+        throw new Exception('Failed to calculate payment due date');
+    }
+    
+    $data = json_decode($response, true);
+    
+    return [
+        'invoice_date' => $invoiceDate,
+        'payment_terms' => $paymentTermDays . ' business days',
+        'due_date' => $data['data']['endDate'],
+        'formatted' => date('d/m/Y', strtotime($data['data']['endDate']))
+    ];
+}
+
+// Example usage
+try {
+    $result = calculatePaymentDueDate('2024-10-22', 30);
+    print_r($result);
+} catch (Exception $e) {
+    echo 'Error: ' . $e->getMessage();
+}
+?>
+```
+
+</CodeGroup>
+
+## Use Case 6: Delivery Date Estimator
+
+Estimate delivery dates for e-commerce or logistics.
+
+```python
+import requests
+from datetime import datetime
+from typing import Dict, Optional
+
+class DeliveryEstimator:
+    BASE_URL = 'https://api.aju.br/api/v1'
+    
+    def __init__(self):
+        self.session = requests.Session()
+    
+    def estimate_delivery(
+        self,
+        order_date: str,
+        processing_days: int,
+        shipping_days: int,
+        include_saturdays: bool = False
+    ) -> Dict:
+        """
+        Estimates delivery date considering processing and shipping time.
+        
+        Args:
+            order_date: Order placement date (YYYY-MM-DD)
+            processing_days: Days needed for order processing
+            shipping_days: Days needed for shipping
+            include_saturdays: Whether to include Saturdays as working days
+        
+        Returns:
+            Dictionary with estimated dates and timeline
+        """
+        try:
+            # Calculate shipping start date (after processing)
+            processing_url = (
+                f'{self.BASE_URL}/calendar/business-days/end-date?'
+                f'startDate={order_date}&workingDays={processing_days}'
+                f'&includeSaturdays={str(include_saturdays).lower()}'
+            )
+            
+            processing_response = self.session.get(processing_url)
+            processing_response.raise_for_status()
+            shipping_start = processing_response.json()['data']['endDate']
+            
+            # Calculate final delivery date
+            delivery_url = (
+                f'{self.BASE_URL}/calendar/business-days/end-date?'
+                f'startDate={shipping_start}&workingDays={shipping_days}'
+                f'&includeSaturdays={str(include_saturdays).lower()}'
+            )
+            
+            delivery_response = self.session.get(delivery_url)
+            delivery_response.raise_for_status()
+            delivery_date = delivery_response.json()['data']['endDate']
+            
+            # Calculate total business days
+            total_url = (
+                f'{self.BASE_URL}/calendar/business-days?'
+                f'startDate={order_date}&endDate={delivery_date}'
+            )
+            
+            total_response = self.session.get(total_url)
+            total_response.raise_for_status()
+            total_days = total_response.json()['data']['businessDays']
+            
+            return {
+                'order_date': order_date,
+                'processing_complete': shipping_start,
+                'estimated_delivery': delivery_date,
+                'total_business_days': total_days,
+                'formatted_delivery': datetime.strptime(
+                    delivery_date, '%Y-%m-%d'
+                ).strftime('%d/%m/%Y')
+            }
+            
+        except requests.RequestException as e:
+            return {
+                'error': True,
+                'message': f'Failed to estimate delivery: {str(e)}'
+            }
+
+# Example usage
+estimator = DeliveryEstimator()
+
+# Order placed on Oct 22, 2024
+# 2 days processing + 5 days shipping
+result = estimator.estimate_delivery(
+    order_date='2024-10-22',
+    processing_days=2,
+    shipping_days=5
+)
+
+print(f"Order Date: {result['order_date']}")
+print(f"Processing Complete: {result['processing_complete']}")
+print(f"Estimated Delivery: {result['estimated_delivery']}")
+print(f"Total Business Days: {result['total_business_days']}")
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Cache Responses" icon="database">
+    Holiday data doesn't change frequently. Cache responses to reduce API calls:
+
+    ```javascript
+    // Cache holidays for 24 hours
+    const cacheKey = `holidays_${year}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData);
+      const isExpired = Date.now() - timestamp > 24 * 60 * 60 * 1000;
+      
+      if (!isExpired) {
+        return data;
+      }
+    }
+    
+    // Fetch fresh data and cache it
+    const response = await fetch(`https://api.aju.br/api/v1/calendar/holidays?year=${year}`);
+    const data = await response.json();
+    
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+    ```
+  </Accordion>
+
+  <Accordion title="Error Handling" icon="triangle-exclamation">
+    Always handle errors gracefully:
+
+    ```javascript
+    async function safeApiCall(url) {
+      try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('API call failed:', error);
+        // Return fallback data or show user-friendly message
+        return { error: true, message: 'Service temporarily unavailable' };
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Batch Requests" icon="layer-group">
+    If you need data for multiple years, make concurrent requests:
+
+    ```javascript
+    const years = [2024, 2025, 2026];
+    
+    const promises = years.map(year =>
+      fetch(`https://api.aju.br/api/v1/calendar/holidays?year=${year}`)
+        .then(r => r.json())
+    );
+    
+    const results = await Promise.all(promises);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Need More Help?
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="book"
+    href="/api-reference/introduction"
+  >
+    View complete API documentation
+  </Card>
+  <Card
+    title="Error Handling Guide"
+    icon="shield-halved"
+    href="/error-handling"
+  >
+    Learn how to handle errors
+  </Card>
+  <Card
+    title="Best Practices"
+    icon="star"
+    href="/best-practices"
+  >
+    Optimize your integration
+  </Card>
+  <Card
+    title="GitHub"
+    icon="github"
+    href="https://github.com/wolney-fo/apiaju"
+  >
+    View source code and examples
+  </Card>
+</CardGroup>
+
